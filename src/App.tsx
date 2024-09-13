@@ -35,7 +35,7 @@ const App = () => {
   }, []);
 
   async function fetchUsers() {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('users')
       .select('*');
 
