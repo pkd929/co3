@@ -14,9 +14,6 @@ const App = () => {
   const handleAnimationEnd = (id: number) => {
     setClicks((prevClicks) => prevClicks.filter(click => click.id !== id));
   };
-
- 
-  const [users, setUsers] = useState([]);  
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,7 +43,6 @@ const App = () => {
       console.error('Error fetching users:', error);
       setLoading(false);
     } else {
-      setUsers(data);
       setLoading(false);
     }
   }
@@ -72,16 +68,11 @@ const postUserData = async (points: number, clicks: number) => {
 
     if (authError) {
       console.error('Auth error:', authError);
-      // Handle unauthenticated user - maybe redirect to login or use anonymous session
       return;
     }
 
     if (!user) {
       console.log('No authenticated user. Using anonymous session.');
-      // Here you could either:
-      // 1. Redirect to login
-      // 2. Use an anonymous session (if your app supports it)
-      // 3. Store data locally and sync later when user authenticates
       return;
     }
 
