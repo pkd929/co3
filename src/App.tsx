@@ -17,35 +17,66 @@ const App = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchUsers();
+    fetchUserData();
   }, []);
 
-  useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        console.log('User signed in:', session?.user)
-      } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out')
-      }
-    })
+  async function fetchUserData() {
+    setLoading(true);
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    return () => {
-      authListener.subscription.unsubscribe()
+    if (authError || !user) {
+      console.log('User is not authenticated. Using local data.');
+      // Load data from local storage if available
+      const localPoints = localStorage.getItem('points');
+      const localEnergy = localStorage.getItem('energy');
+      if (localPoints) setPoints(parseInt(localPoints));
+      if (localEnergy) setEnergy(parseInt(localEnergy));
+      setLoading(false);
+      return;
     }
-  }, []);
 
-  async function fetchUsers() {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('users')
-      .select('*');
+      .select('points, energy')
+      .eq('id', user.id)
+      .single();
 
     if (error) {
-      console.error('Error fetching users:', error);
-      setLoading(false);
-    } else {
-      setLoading(false);
+      console.error('Error fetching user data:', error);
+    } else if (data) {
+      setPoints(data.points);
+      setEnergy(data.energy);
     }
+    setLoading(false);
   }
+
+  const postUserData = async (points: number, energy: number) => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        console.log('User is not authenticated. Storing data locally.');
+        localStorage.setItem('points', points.toString());
+        localStorage.setItem('energy', energy.toString());
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .upsert({ 
+          id: user.id, 
+          points, 
+          energy 
+        }, { 
+          onConflict: 'id' 
+        });
+
+      if (error) throw error;
+      console.log('Data upserted successfully:', data);
+    } catch (err) {
+      console.error('Error posting data:', err);
+    }
+  };
 
   const handleClick = async (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     if (energy - energyToReduce < 0) {
@@ -55,45 +86,14 @@ const App = () => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    setPoints(points + pointsToAdd);
-    setEnergy(energy - energyToReduce < 0 ? 0 : energy - energyToReduce);
+    const newPoints = points + pointsToAdd;
+    const newEnergy = energy - energyToReduce < 0 ? 0 : energy - energyToReduce;
+    setPoints(newPoints);
+    setEnergy(newEnergy);
     setClicks([...clicks, { id: Date.now(), x, y }]);
 
- await postUserData(points + pointsToAdd, clicks.length + 1);
-};
-
-const postUserData = async (points: number, clicks: number) => {
-  try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError) {
-      console.error('Auth error:', authError);
-      return;
-    }
-
-    if (!user) {
-      console.log('No authenticated user. Using anonymous session.');
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('users')
-      .upsert({ 
-        id: user.id, 
-        points, 
-        clicks 
-      }, { 
-        onConflict: 'id' 
-      });
-
-    if (error) throw error;
-    console.log('Data upserted successfully:', data);
-  } catch (err) {
-    console.error('Error posting data:', err);
-    console.error(JSON.stringify(err, null, 2));
-  }
-};
-
+    await postUserData(newPoints, newEnergy);
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
